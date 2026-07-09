@@ -101,7 +101,7 @@ function render() {
     const t1 = document.createElementNS(SVGNS, "text");
     t1.setAttribute("x", 10); t1.setAttribute("y", 22);
     t1.setAttribute("class", "nref");
-    t1.textContent = `${n.ref}  ·  ${n.kind}`;
+    t1.textContent = n.label.length > 26 ? n.label.slice(0, 25) + "…" : n.label;
     grp.appendChild(t1);
     const badge = nodeBadges(n);
     if (badge) {
@@ -114,7 +114,7 @@ function render() {
     const t2 = document.createElementNS(SVGNS, "text");
     t2.setAttribute("x", 10); t2.setAttribute("y", 40);
     t2.setAttribute("class", "nlabel");
-    t2.textContent = n.label.length > 30 ? n.label.slice(0, 29) + "…" : n.label;
+    t2.textContent = `${n.ref} · ${n.kind}`;
     grp.appendChild(t2);
     const note = GRAPH.annotations[n.ref];
     if (showNotes && note) {
@@ -215,19 +215,34 @@ $("annotate-btn").onclick = async () => {
 
 /* ---------- diff view ---------- */
 function diffTable(rows) {
+  // Side-by-side split: pair each run of deletions with the following adds.
   const table = el("table", { class: "diff" });
-  for (const r of rows) {
-    const tr = el("tr", { class: r.t === "add" ? "add" : r.t === "del" ? "del" : r.t });
-    if (r.t === "gap") {
-      const td = el("td", { colspan: 3 }, "· · ·");
-      tr.appendChild(td);
-    } else {
-      tr.appendChild(el("td", { class: "num" }, r.an || ""));
-      tr.appendChild(el("td", { class: "num" }, r.bn || ""));
-      tr.appendChild(el("td", { class: "code mono" }, r.s));
+  const cell = (tr, cls, num, text, sign) => {
+    tr.appendChild(el("td", { class: "num " + cls }, num || ""));
+    const td = el("td", { class: "code mono " + cls }, text ?? "");
+    if (sign) td.dataset.sign = sign;
+    tr.appendChild(td);
+  };
+  const flush = (dels, adds) => {
+    for (let i = 0; i < Math.max(dels.length, adds.length); i++) {
+      const tr = el("tr", {});
+      const d = dels[i], a = adds[i];
+      d ? cell(tr, "cdel", d.an, d.s, "-") : cell(tr, "cempty");
+      a ? cell(tr, "cadd", a.bn, a.s, "+") : cell(tr, "cempty");
+      table.appendChild(tr);
     }
+  };
+  let dels = [], adds = [];
+  for (const r of rows) {
+    if (r.t === "del") { dels.push(r); continue; }
+    if (r.t === "add") { adds.push(r); continue; }
+    flush(dels, adds); dels = []; adds = [];
+    const tr = el("tr", { class: r.t === "gap" ? "gap" : "" });
+    if (r.t === "gap") tr.appendChild(el("td", { colspan: 4 }, "· · ·"));
+    else { cell(tr, "", r.an, r.s); cell(tr, "", r.bn, r.s); }
     table.appendChild(tr);
   }
+  flush(dels, adds);
   return table;
 }
 function diffFileBox(title, payload) {

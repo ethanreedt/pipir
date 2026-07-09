@@ -25,7 +25,20 @@
     <span id="pipeline-msg" class="msg"></span>
   </div>
   <div class="split">
-    <div id="canvas-wrap"><svg id="canvas"></svg></div>
+    <div id="canvas-wrap"><svg id="canvas"></svg>
+      <details id="legend"><summary>legend</summary>
+        <div class="lrow"><span class="sw" style="background:#dafbe1"></span> source</div>
+        <div class="lrow"><span class="sw" style="background:#ffebe9"></span> sink</div>
+        <div class="lrow"><span class="sw" style="background:#ddf4ff"></span> map</div>
+        <div class="lrow"><span class="sw" style="background:#fff1e5"></span> route / filter</div>
+        <div class="lrow"><span class="sw" style="background:#fbefff"></span> join</div>
+        <div class="lrow"><span class="sw" style="background:#fff8c5"></span> parse / format</div>
+        <div class="lrow"><span class="sw" style="background:#e7e9fb"></span> call / exec</div>
+        <div class="lrow"><span class="sw" style="background:#f6f8fa"></span> union / copy</div>
+        <div class="lrow"><span class="sw" style="background:#eaeef2;border-style:dashed"></span> opaque</div>
+        <div class="lrow">⛔ / ⚠️ lint findings · dashed red edge = error branch</div>
+      </details>
+    </div>
     <aside id="side">
       <div id="side-empty" class="dim">Select a node — or browse the findings below.</div>
       <div id="node-detail" hidden>

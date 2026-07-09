@@ -236,6 +236,7 @@ def _check_mappings(pipe, findings):
 
 
 def _check_wiring(pipe, findings):
+    has_handler = pipe.error_pipeline is not None
     wired = set()
     for e in pipe.edges:
         wired.add((e.src_id, e.src_view))
@@ -252,10 +253,17 @@ def _check_wiring(pipe, findings):
         for port in node.errors:
             key = (node.instance_id, port.key)
             if port.behavior == "continue" and key not in wired:
-                findings.append(Finding(
-                    "error-unwired", "warn", node.ref,
-                    "errors are routed to the error view (%s) but it is not "
-                    "connected — failures vanish silently" % port.slot))
+                if has_handler:
+                    findings.append(Finding(
+                        "error-unwired", "info", node.ref,
+                        "error view (%s) unconnected; errors fall through to "
+                        "the pipeline-level error handler" % port.slot))
+                else:
+                    findings.append(Finding(
+                        "error-unwired", "warn", node.ref,
+                        "errors are routed to the error view (%s) but it is "
+                        "not connected and no pipeline-level error handler is "
+                        "set — failures vanish silently" % port.slot))
 
 
 def lint_pipeline(pipe, ir_text=None):

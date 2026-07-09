@@ -101,6 +101,8 @@ button:hover { background: #eef1f4; }
   display: flex; gap: 10px; align-items: baseline; }
 .dstat-add { color: #1a7f37; } .dstat-del { color: var(--err); }
 .renames { font-weight: 400; font-size: 12px; color: var(--dim); }
+.newfindings { padding: 6px 10px; background: #fff8c5;
+  border-bottom: 1px solid var(--line); }
 table.diff { border-collapse: collapse; width: 100%; }
 table.diff td { padding: 0 8px; vertical-align: top; }
 td.num { width: 1%; min-width: 36px; text-align: right; color: #8c959f;

@@ -58,7 +58,8 @@ tier; the tiers differ only in how much the IR interprets for you.
   detection via stable instance ids.
 - **PR** — point at a *local clone* + PR number; fetches `refs/pull/N/head` with
   plain system git (no gh CLI, no API token — uses the clone's own credentials),
-  converts base/head `.slp` blobs in memory, and shows their IR diffs.
+  converts base/head `.slp` blobs in memory, and shows their IR diffs plus any
+  **lint findings introduced by the change** (base findings vs. head findings).
 - **Chat** — ask an LLM about the selected pipeline. Configure the endpoint by
   copying `.env.example` to `.env` (any OpenAI-compatible chat-completions URL).
 

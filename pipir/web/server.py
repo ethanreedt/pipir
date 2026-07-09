@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from ..convert import build_pipeline, idmap
 from ..emit import emit
+from ..lint import lint_pipeline
 from . import diffing, gitpr, llm, notes
 from .graph import build_graph
 
@@ -74,9 +75,18 @@ class State:
         return graph
 
 
-def _ir_and_idmap(doc, stem):
+def _convert_side(doc, stem):
     pipe = build_pipeline(doc, name_fallback=stem)
-    return emit(pipe), idmap(pipe)
+    ir = emit(pipe)
+    return ir, idmap(pipe), lint_pipeline(pipe, ir)
+
+
+def _new_findings(base_findings, head_findings):
+    """Findings present on head but not base, matched check+message
+    (refs renumber across versions, so they can't be part of the key)."""
+    seen = {(f.check, f.message) for f in base_findings}
+    return [f.__dict__ for f in head_findings
+            if (f.check, f.message) not in seen]
 
 
 def _pr_payload(state, repo, number):
@@ -88,19 +98,20 @@ def _pr_payload(state, repo, number):
         for rev in (base, head):
             raw = gitpr.blob(repo, rev, path)
             if raw is None:
-                pair.append(("", {}))
+                pair.append(("", {}, []))
                 continue
             try:
-                pair.append(_ir_and_idmap(json.loads(raw), stem))
+                pair.append(_convert_side(json.loads(raw), stem))
             except ValueError:
-                pair.append((raw, {}))  # not JSON: diff raw text
-        (a_ir, a_map), (b_ir, b_map) = pair
+                pair.append((raw, {}, []))  # not JSON: diff raw text
+        (a_ir, a_map, a_lint), (b_ir, b_map, b_lint) = pair
         rows = diffing.diff_rows(a_ir, b_ir)
         files.append({
             "path": path,
             "rows": rows,
             "stats": diffing.stats(rows),
             "renames": diffing.renames(a_map, b_map),
+            "new_findings": _new_findings(a_lint, b_lint),
         })
     return {"base": base[:12], "head": head[:12], "files": files}
 
@@ -172,13 +183,18 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == "/api/chat":
             def go():
                 graph = state.graph(body["f"])
+                lint_ctx = "\n".join(
+                    "%s [%s] %s: %s" % (f["severity"], f["check"],
+                                        f["ref"] or "pipeline", f["message"])
+                    for f in graph["findings"]) or "none"
                 system = (
                     "You answer questions about one ETL pipeline, given its "
                     "ETL-IR text (an assembly-like format: node blocks with "
                     "mapping/route/join statements, edge lines wiring ports, "
                     "expressions kept verbatim from the source platform). "
                     "Be concrete; cite node ids like map.3.\n\nPipeline "
-                    "'%s':\n\n%s" % (graph["name"], graph["ir"]))
+                    "'%s':\n\n%s\n\nStatic-analysis findings:\n%s"
+                    % (graph["name"], graph["ir"], lint_ctx))
                 messages = [{"role": "system", "content": system}]
                 messages += [m for m in body.get("messages", [])
                              if m.get("role") in ("user", "assistant")]

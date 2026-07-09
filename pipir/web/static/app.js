@@ -241,6 +241,19 @@ function diffFileBox(title, payload) {
       "renumbered: " + payload.renames.map((r) => `${r.from}→${r.to}`).join(", ")));
   }
   box.appendChild(head);
+  if (payload.new_findings && payload.new_findings.length) {
+    const fbox = el("div", { class: "newfindings" });
+    fbox.appendChild(el("div", { class: "fhead" },
+      `⚠ ${payload.new_findings.length} finding(s) introduced by this change`));
+    for (const f of payload.new_findings) {
+      const d = el("div", { class: "finding " + f.severity });
+      d.appendChild(el("div", { class: "fhead" },
+        `${f.severity.toUpperCase()} [${f.check}] ${f.ref || "pipeline"}`));
+      d.appendChild(el("div", { class: "fmsg" }, f.message));
+      fbox.appendChild(d);
+    }
+    box.appendChild(fbox);
+  }
   if (!payload.rows.length) box.appendChild(el("div", { class: "dhead dim" }, "no changes"));
   else box.appendChild(diffTable(payload.rows));
   return box;

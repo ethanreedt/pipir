@@ -2,20 +2,30 @@
 
 GitHub (incl. Enterprise) exposes each PR as a server-side ref
 `refs/pull/<N>/head` that any authenticated `git fetch` can retrieve using
-the clone's existing credentials (SSH key / credential helper).
+git's existing credentials (SSH key / credential helper).
+
+Two modes:
+- local clone: fetch the PR ref into an existing checkout;
+- pasted PR URL: maintain a bare, blob-less cache clone under
+  ~/.cache/pipir/repos/ and fetch the PR refs into that. Auth is git's own
+  (public repos need nothing; private ones need whatever `git clone` needs).
 """
 
+import os
+import re
 import subprocess
+
+_PR_URL = re.compile(
+    r"^https?://([^/]+)/([^/]+)/([^/]+?)(?:\.git)?/pull/(\d+)")
 
 
 class GitError(RuntimeError):
     pass
 
 
-def _git(repo, *args):
-    proc = subprocess.run(
-        ["git", "-C", repo] + list(args),
-        capture_output=True, timeout=120)
+def _git(repo, *args, timeout=120):
+    cmd = ["git"] + (["-C", repo] if repo else []) + list(args)
+    proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
     if proc.returncode != 0:
         raise GitError((proc.stderr or proc.stdout)
                        .decode("utf-8", "replace").strip()
@@ -62,3 +72,57 @@ def blob(repo, rev, path):
         return _git(repo, "show", "%s:%s" % (rev, path)).decode("utf-8")
     except GitError:
         return None
+
+
+def parse_pr_url(url):
+    m = _PR_URL.match(url.strip())
+    if not m:
+        raise GitError("not a PR URL (expected "
+                       "https://<host>/<owner>/<repo>/pull/<N>): %s" % url)
+    host, owner, repo, number = m.groups()
+    return host, owner, repo, int(number)
+
+
+def _cache_dir():
+    base = os.environ.get("XDG_CACHE_HOME") \
+        or os.path.join(os.path.expanduser("~"), ".cache")
+    return os.path.join(base, "pipir", "repos")
+
+
+def _cache_repo(host, owner, repo):
+    """Bare, blob-less cache clone for a remote repo; cloned on first use."""
+    path = os.path.join(_cache_dir(),
+                        "%s_%s_%s.git" % (host, owner, repo))
+    if not os.path.isdir(path):
+        os.makedirs(_cache_dir(), exist_ok=True)
+        url = "https://%s/%s/%s.git" % (host, owner, repo)
+        try:
+            _git(None, "clone", "--bare", "--filter=blob:none",
+                 url, path, timeout=600)
+        except GitError as exc:
+            raise GitError(
+                "cannot clone %s: %s\n(private repo? make sure plain "
+                "`git clone %s` works — pipir reuses git's own auth — or "
+                "use local-clone mode)" % (url, exc, url))
+    return path
+
+
+def pr_url_slp_files(url):
+    """Resolve a pasted PR URL via the cache clone.
+
+    Returns (repo_path, base_sha, head_sha, [changed .slp paths]).
+    """
+    host, owner, repo, number = parse_pr_url(url)
+    path = _cache_repo(host, owner, repo)
+    # Default branch of the remote (target of the PR's merge-base).
+    sym = _text(path, "ls-remote", "--symref", "origin", "HEAD")
+    m = re.search(r"^ref:\s+refs/heads/(\S+)\s+HEAD", sym, re.M)
+    default = m.group(1) if m else "main"
+    _git(path, "fetch", "--force", "--quiet", "origin",
+         "refs/pull/%d/head:refs/pipir/head" % number,
+         "refs/heads/%s:refs/pipir/base" % default, timeout=600)
+    head = _text(path, "rev-parse", "refs/pipir/head")
+    base = _text(path, "merge-base", "refs/pipir/base", head)
+    changed = _text(path, "diff", "--name-only", "--diff-filter=ACMR",
+                    base, head).splitlines()
+    return path, base, head, [p for p in changed if p.endswith(".slp")]

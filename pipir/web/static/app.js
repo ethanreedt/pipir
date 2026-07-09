@@ -273,11 +273,25 @@ function diffFileBox(title, payload) {
   return box;
 }
 /* ---------- PR view ---------- */
+$("pr-mode").onchange = () => {
+  const local = $("pr-mode").value === "local";
+  $("pr-url").hidden = local;
+  $("pr-local").hidden = !local;
+};
+$("pr-url").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("pr-btn").click();
+});
 $("pr-btn").onclick = async () => {
-  setMsg($("pr-msg"), "fetching PR via git…");
+  setMsg($("pr-msg"), "fetching PR via git… (first use of a repo clones a blob-less cache; may take a moment)");
   try {
-    const repo = $("pr-repo").value.trim(), n = $("pr-num").value.trim();
-    const data = await api(`/api/pr?repo=${encodeURIComponent(repo)}&n=${encodeURIComponent(n)}`);
+    let query;
+    if ($("pr-mode").value === "url") {
+      query = `url=${encodeURIComponent($("pr-url").value.trim())}`;
+    } else {
+      const repo = $("pr-repo").value.trim(), n = $("pr-num").value.trim();
+      query = `repo=${encodeURIComponent(repo)}&n=${encodeURIComponent(n)}`;
+    }
+    const data = await api(`/api/pr?${query}`);
     const out = $("pr-out");
     out.innerHTML = "";
     setMsg($("pr-msg"),

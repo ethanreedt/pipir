@@ -59,6 +59,19 @@ class GraphTests(unittest.TestCase):
                          content_hash("map.7", block2))
 
 
+class PrUrlTests(unittest.TestCase):
+    def test_parse(self):
+        from pipir.web.gitpr import GitError, parse_pr_url
+        self.assertEqual(
+            parse_pr_url("https://github.com/o/r/pull/12"),
+            ("github.com", "o", "r", 12))
+        self.assertEqual(
+            parse_pr_url("https://ghe.corp.io/team/pipes.git/pull/7"),
+            ("ghe.corp.io", "team", "pipes", 7))
+        with self.assertRaises(GitError):
+            parse_pr_url("https://github.com/o/r/issues/3")
+
+
 class DiffTests(unittest.TestCase):
     def test_identical(self):
         self.assertEqual(diff_rows("a\nb\n", "a\nb\n"), [])

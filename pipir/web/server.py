@@ -89,8 +89,11 @@ def _new_findings(base_findings, head_findings):
             if (f.check, f.message) not in seen]
 
 
-def _pr_payload(state, repo, number):
-    base, head, paths = gitpr.pr_slp_files(repo, number)
+def _pr_payload(state, repo=None, number=None, url=None):
+    if url:
+        repo, base, head, paths = gitpr.pr_url_slp_files(url)
+    else:
+        base, head, paths = gitpr.pr_slp_files(repo, number)
     files = []
     for path in paths:
         stem = os.path.splitext(os.path.basename(path))[0]
@@ -155,7 +158,10 @@ class Handler(BaseHTTPRequestHandler):
                 return graph
             self._api(go)
         elif url.path == "/api/pr":
-            self._api(lambda: _pr_payload(state, q["repo"], int(q["n"])))
+            if "url" in q:
+                self._api(lambda: _pr_payload(state, url=q["url"]))
+            else:
+                self._api(lambda: _pr_payload(state, q["repo"], int(q["n"])))
         elif url.path in ("/", "/index.html"):
             self._static("index.html")
         else:

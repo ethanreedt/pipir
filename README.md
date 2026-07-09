@@ -54,11 +54,14 @@ tier; the tiers differ only in how much the IR interprets for you.
 
 - **Pipeline** — interactive diagram (layered by dataflow depth; pan/zoom; error
   edges dashed red). Click a node for its IR block, lint findings, and annotation.
-- **PR Diff** — point at a *local clone* + PR number; fetches `refs/pull/N/head`
-  with plain system git (no gh CLI, no API token — uses the clone's own
-  credentials), converts base/head `.slp` blobs in memory, and shows GitHub-style
-  side-by-side IR diffs (renumbered nodes detected via stable instance ids) plus
-  any **lint findings introduced by the change**.
+- **PR Diff** — paste a GitHub PR URL (default), or point at a local clone + PR
+  number. Either way the fetch is plain system git (no gh CLI, no API token):
+  URL mode keeps a bare `--filter=blob:none` cache clone under
+  `~/.cache/pipir/repos/` and fetches `refs/pull/N/head` into it, so auth is
+  git's own — public repos need nothing; private repos work iff `git clone`
+  works on your machine. Base/head `.slp` blobs are converted in memory and
+  shown as GitHub-style side-by-side IR diffs (renumbered nodes detected via
+  stable instance ids) plus any **lint findings introduced by the change**.
 - **Chat** — ask an LLM about the selected pipeline. Configure the endpoint by
   copying `.env.example` to `.env` (any OpenAI-compatible chat-completions URL).
 

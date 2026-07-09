@@ -52,8 +52,15 @@
 
 <main id="tab-pr" class="pane">
   <div class="toolbar">
-    <input id="pr-repo" placeholder="/path/to/local/clone" size="34">
-    <input id="pr-num" placeholder="PR #" size="6">
+    <select id="pr-mode">
+      <option value="url">GitHub URL</option>
+      <option value="local">Local clone</option>
+    </select>
+    <input id="pr-url" placeholder="https://github.com/org/repo/pull/123" size="44">
+    <span id="pr-local" hidden>
+      <input id="pr-repo" placeholder="/path/to/local/clone" size="30">
+      <input id="pr-num" placeholder="PR #" size="6">
+    </span>
     <button id="pr-btn">Load PR</button>
     <span id="pr-msg" class="msg"></span>
   </div>

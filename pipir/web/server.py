@@ -154,16 +154,6 @@ class Handler(BaseHTTPRequestHandler):
                 graph["annotations"] = notes.for_graph(state.root, graph)
                 return graph
             self._api(go)
-        elif url.path == "/api/diff":
-            def go():
-                a = state.graph(q["a"])
-                b = state.graph(q["b"])
-                rows = diffing.diff_rows(a["ir"], b["ir"])
-                ida = {n["ref"]: n["instance_id"] for n in a["nodes"]}
-                idb = {n["ref"]: n["instance_id"] for n in b["nodes"]}
-                return {"rows": rows, "stats": diffing.stats(rows),
-                        "renames": diffing.renames(ida, idb)}
-            self._api(go)
         elif url.path == "/api/pr":
             self._api(lambda: _pr_payload(state, q["repo"], int(q["n"])))
         elif url.path in ("/", "/index.html"):

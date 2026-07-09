@@ -34,7 +34,7 @@ let FILES = [], LLM_OK = false;
 async function loadFiles() {
   const data = await api("/api/list");
   FILES = data.files; LLM_OK = data.llm;
-  for (const sel of [$("file-select"), $("diff-a"), $("diff-b"), $("chat-file")]) {
+  for (const sel of [$("file-select"), $("chat-file")]) {
     sel.innerHTML = "";
     FILES.forEach((f) => sel.appendChild(el("option", { value: f }, f)));
   }
@@ -44,7 +44,6 @@ async function loadFiles() {
   }
   if (FILES.length) {
     $("file-select").value = FILES[0];
-    if (FILES.length > 1) $("diff-b").value = FILES[1];
     loadPipeline(FILES[0]);
   }
 }
@@ -273,18 +272,6 @@ function diffFileBox(title, payload) {
   else box.appendChild(diffTable(payload.rows));
   return box;
 }
-$("diff-btn").onclick = async () => {
-  setMsg($("diff-msg"), "diffing…");
-  try {
-    const a = $("diff-a").value, b = $("diff-b").value;
-    const data = await api(`/api/diff?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`);
-    const out = $("diff-out");
-    out.innerHTML = "";
-    out.appendChild(diffFileBox(`${a} → ${b}`, data));
-    setMsg($("diff-msg"), "");
-  } catch (e) { setMsg($("diff-msg"), e.message, true); }
-};
-
 /* ---------- PR view ---------- */
 $("pr-btn").onclick = async () => {
   setMsg($("pr-msg"), "fetching PR via git…");

@@ -11,8 +11,7 @@
   <span class="logo">pipir</span>
   <nav>
     <button data-tab="pipeline" class="tab active">Pipeline</button>
-    <button data-tab="diff" class="tab">Diff</button>
-    <button data-tab="pr" class="tab">PR</button>
+    <button data-tab="pr" class="tab">PR Diff</button>
     <button data-tab="chat" class="tab">Chat</button>
   </nav>
 </header>
@@ -49,17 +48,6 @@
       <div id="findings"></div>
     </aside>
   </div>
-</main>
-
-<main id="tab-diff" class="pane">
-  <div class="toolbar">
-    <select id="diff-a"></select>
-    <span>→</span>
-    <select id="diff-b"></select>
-    <button id="diff-btn">Compare</button>
-    <span id="diff-msg" class="msg"></span>
-  </div>
-  <div id="diff-out"></div>
 </main>
 
 <main id="tab-pr" class="pane">

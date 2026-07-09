@@ -1,0 +1,529 @@
+etl-ir 0.1
+dialect snaplogic
+
+pipeline "sub_INT8000_QV_RPT_WS" ; name from filename (export carries no label)
+
+param fileName
+param QlikviewServer
+param LogIntoDB
+param CreateJIRA
+param SendEmail
+param IssueType
+param Priority
+param ProjectId
+param JiraDescriptionLength
+param FromEmail
+param AllowJSONFormat
+param To
+param Cc
+param ToTechEmail
+param JiraComponent
+param QVServerPath
+
+node map.1 map native=transform-datatransform
+  label "Mapper2"
+  in in0
+  out out0
+  err err0 fail
+  passthrough on
+  map expr "_fileName" -> "$Path"
+
+node copy.1 copy native=flow-copy
+  label "Copy"
+  in in0
+  out out0
+  out out1
+  err err0 fail
+
+node map.2 map native=transform-datatransform
+  label "Mapper2"
+  in in0
+  out out0
+  err err0 fail
+  passthrough on
+  map expr "\"1\"" -> "$join2"
+  map expr "_fileName" -> "$Path"
+
+node route.1 route native=flow-router
+  label "Router"
+  in in0
+  out out0
+  out out1
+  err err0 fail
+  first-match off
+  when expr "_fileName.contains(\"xlsx\")" -> out0
+  when expr "!_fileName.contains(\"xlsx\")" -> out1
+  set persistence "No Cache"
+
+node read.1 source native=binary-simpleread
+  label "File Reader-Qlikview Source"
+  in in0
+  out out0 binary
+  err err0 continue
+  account expr "_QlikviewServer"
+  set executeDuringPreview false
+  set filePath expr "_fileName"
+  set preventURLEncoding false
+
+node read.2 source native=binary-simpleread
+  label "File Reader-Qlikview Source"
+  in in0
+  out out0 binary
+  err err0 continue
+  account expr "_QlikviewServer"
+  set executeDuringPreview false
+  set filePath expr "_fileName"
+  set preventURLEncoding false
+
+node map.3 map native=transform-datatransform
+  label "Mapper -DB logging for failure to connect or read file from Qlikview server"
+  in in0
+  out out0
+  err err0 fail
+  nullsafe on
+  map expr "_LogIntoDB" -> "$LogIntoDB"
+  map expr "_CreateJIRA" -> "$CreateJIRA"
+  map expr "_SendEmail" -> "$SendEmail"
+  map expr "_fileName" -> "$Request"
+  map expr "$['Error ']" -> "$error"
+  map expr "null" -> "$Response"
+  map expr "pipe.projectPath" -> "$projectPath"
+  map expr "pipe.ruuid" -> "$ruuid"
+  map expr "pipe.label" -> "$label"
+  map expr "\"SnapLogic\"" -> "$USER"
+  map expr "\"SNAP_TO_QV\"" -> "$MODULE_NAME"
+  map expr "\"Fail\"" -> "$Status"
+  map expr "\"Snap Name\"" -> "$SRC_KEY_1"
+  map expr "$snap_details.label" -> "$SRC_VALUE_1"
+  map expr "null" -> "$SRC_KEY_2"
+  map expr "null" -> "$SRC_VALUE_2"
+  map expr "null" -> "$TGT_KEY_1"
+  map expr "null" -> "$TGT_VALUE_1"
+  map expr "null" -> "$TGT_KEY_2"
+  map expr "null" -> "$TGT_VALUE_2"
+  map expr "\"FAIL : Connection QV error\"" -> "$STATUS_DESCRIPTION"
+  map expr "null" -> "$ERROR_CODE"
+  map expr "$.hasOwnProperty(\"reason\") ? $reason : null" -> "$ERROR_DESCRIPTION"
+  map expr "\"FAIL : Connection QV error\"" -> "$JiraSummary"
+  map expr "_JiraComponent" -> "$JiraComponent"
+  map expr "$.hasOwnProperty(\"resolution\") ? $resolution : null" -> "$EmailResolution"
+  map expr "_To" -> "$EmailTo"
+  map expr "_Cc" -> "$EmailCc"
+  map expr "\"FAIL : Connection QV error\"" -> "$EmailSubject"
+  map expr "Date.now().toLocaleDateTimeString('{\"timeZone\":\"EST\", \"format\":\"yyyy-MM-dd HH:mm:ss\"}')" -> "$LogTime"
+  map expr "_AllowJSONFormat" -> "$JiraformatJSON"
+
+node parse.1 parse native=transform-binarytodocument
+  label "Binary to Document"
+  in in0 binary
+  out out0
+  err err0 fail
+  set codec "ENCODE_BASE64"
+  set ignoreEmptyStream false
+
+node parse.2 parse native=transform-excelparser
+  label "Excel Parser"
+  in in0 binary
+  out out0
+  err err0 continue
+  set EvaluateFormulasProp false
+  set columnNamesProp []
+  set containsHeaderProp true
+  set endRowProp null
+  set headerRowProp 1
+  set nullEmptyColumns false
+  set sheetIndexOrNameProp "0"
+  set startRowProp null
+
+node format.1 format native=transform-csvformatter
+  label "CSV Formatter"
+  in in0
+  out out0 binary
+  err err0 fail
+  set charset "UTF-8"
+  set delimiter ","
+  set ignoreEmptyStream false
+  set newlineCharacter "LF"
+  set quoteCharacter null
+  set quoteMode "ALL"
+  set useDefinedHeader false
+  set userDefinedHeader []
+  set writeBOM false
+  set writeHeader true
+
+node map.4 map native=transform-datatransform
+  label "Mapper -DB logging for failure to parse the file from Qlikview server"
+  in in0
+  out out0
+  err err0 fail
+  nullsafe on
+  map expr "_LogIntoDB" -> "$LogIntoDB"
+  map expr "_CreateJIRA" -> "$CreateJIRA"
+  map expr "_SendEmail" -> "$SendEmail"
+  map expr "_fileName" -> "$Request"
+  map expr "$['Error ']" -> "$error"
+  map expr "null" -> "$Response"
+  map expr "pipe.projectPath" -> "$projectPath"
+  map expr "pipe.ruuid" -> "$ruuid"
+  map expr "pipe.label" -> "$label"
+  map expr "\"SnapLogic\"" -> "$USER"
+  map expr "\"SNAP_TO_QV\"" -> "$MODULE_NAME"
+  map expr "\"Fail\"" -> "$Status"
+  map expr "\"Snap Name\"" -> "$SRC_KEY_1"
+  map expr "$snap_details.label" -> "$SRC_VALUE_1"
+  map expr "null" -> "$SRC_KEY_2"
+  map expr "null" -> "$SRC_VALUE_2"
+  map expr "null" -> "$TGT_KEY_1"
+  map expr "null" -> "$TGT_VALUE_1"
+  map expr "null" -> "$TGT_KEY_2"
+  map expr "null" -> "$TGT_VALUE_2"
+  map expr "\"FAIL : Unable to parse the file : \"+_fileName" -> "$STATUS_DESCRIPTION"
+  map expr "null" -> "$ERROR_CODE"
+  map expr "$.hasOwnProperty(\"reason\") ? $reason : null" -> "$ERROR_DESCRIPTION"
+  map expr "\"FAIL : Unable to parse the file : \"+_fileName" -> "$JiraSummary"
+  map expr "_JiraComponent" -> "$JiraComponent"
+  map expr "$.hasOwnProperty(\"resolution\") ? $resolution : null" -> "$EmailResolution"
+  map expr "_To" -> "$EmailTo"
+  map expr "_Cc" -> "$EmailCc"
+  map expr "\"FAIL : Unable to parse the file : \"+_fileName" -> "$EmailSubject"
+  map expr "Date.now().toLocaleDateTimeString('{\"timeZone\":\"EST\", \"format\":\"yyyy-MM-dd HH:mm:ss\"}')" -> "$LogTime"
+  map expr "_AllowJSONFormat" -> "$JiraformatJSON"
+
+node parse.3 parse native=transform-binarytodocument
+  label "Binary to Document"
+  in in0 binary
+  out out0
+  err err0 fail
+  set codec "ENCODE_BASE64"
+  set ignoreEmptyStream false
+
+node union.1 union native=flow-union
+  label "Union"
+  in in0
+  in in1
+  out out0
+  err err0 fail
+
+node map.5 map native=transform-datatransform
+  label "Mapper2"
+  in in0
+  out out0
+  err err0 fail
+  passthrough on
+  map expr "\"1\"" -> "$join1"
+
+node join.1 join native=transform-multijoin
+  label "Join"
+  in in0
+  in in1
+  out out0
+  err err0 fail
+  join inner
+  on expr "$join1" == in1 expr "$join2"
+  set noMatchData false
+  set nullGreater false
+  set nullSafeAccess false
+  set sortedStreams "Ascending"
+
+node map.6 map native=transform-datatransform
+  label "Transformations-Data"
+  in in0
+  out out0
+  err err0 fail
+  map expr "$content" -> "$content"
+  map expr "\"Administrators\"" -> "$groupname[0]"
+  map expr "\"352687\"" -> "$roomID"
+  map expr "$Path.contains(\"xlsx\") ? $Path.substring($Path.lastIndexOf(\"/\")+1,$Path.lastIndexOf(\".\"))+\".csv\" : $Path.substring($Path.lastIndexOf(\"/\")+1,$Path.length)" -> "$filename"
+  map expr "_QVServerPath" -> "$folderpath"
+
+node write.1 sink native=blackberry-postfile
+  label "Blackberry File Upload"
+  in in0
+  out out0
+  err err0 continue
+  account "QV_WatchDox" type blackberry-blackberryaccount
+  set encode true
+  set executable_during_suggest true
+  set fileName expr "$filename"
+  set folderId null
+  set groupName null
+  set retry 5
+  set retryInterval 3
+  set roomId null
+
+node map.7 map native=transform-datatransform
+  label "Mapper1"
+  in in0
+  out out0
+  err err0 fail
+  passthrough on
+  map expr "$original.content" ->
+  map expr "$.hasOwnProperty(\"output\") ?  \"Unable to upload the file in workspaces. Found duplicate file.\\n\\n RoomID : \" +$original.roomID+\" \\n\\n Error Message : \" + $['Error ']  +\"\\n\\n output : \"+$output +\"\\n\\n Code : \"+ $code.toString()   :       \"Unable to upload the file in workspaces. \\n\\n Missing RoomID in Workspaces : \"+$original.roomID+\" \\n\\n Error Message : \"+ $error" -> "$Response"
+  map expr "$.hasOwnProperty(\"output\") ?  ($.toString().contains(\"DOCUMENT_ALREADY_SUBMITED\") ? \"Todelete\" : \"No\") : \"No\"" -> "$TodeleteSourceFile"
+
+node map.8 map native=transform-datatransform
+  label "Mapper1-Remove unwanted data"
+  in in0
+  out out0
+  err err0 fail
+  passthrough on
+  map expr "$original.content" ->
+
+node copy.2 copy native=flow-copy
+  label "Copy1"
+  in in0
+  out out0
+  out out1
+  err err0 fail
+
+node filter.1 filter native=flow-filter
+  label "Filter"
+  in in0
+  out out0
+  err err0 fail
+  where expr "$TodeleteSourceFile == \"Todelete\""
+
+node map.9 map native=transform-datatransform
+  label "Mapper -DB logging for failure to connect or upload the file in workspaces"
+  in in0
+  out out0
+  err err0 fail
+  nullsafe on
+  map expr "_LogIntoDB" -> "$LogIntoDB"
+  map expr "_CreateJIRA" -> "$CreateJIRA"
+  map expr "_SendEmail" -> "$SendEmail"
+  map expr "_fileName" -> "$Request"
+  map expr "$['Error ']" -> "$error"
+  map expr "$Response" -> "$Response"
+  map expr "pipe.projectPath" -> "$projectPath"
+  map expr "pipe.ruuid" -> "$ruuid"
+  map expr "pipe.label" -> "$label"
+  map expr "\"SnapLogic\"" -> "$USER"
+  map expr "\"SNAP_TO_QV\"" -> "$MODULE_NAME"
+  map expr "\"Fail\"" -> "$Status"
+  map expr "\"Snap Name\"" -> "$SRC_KEY_1"
+  map expr "$snap_details.label" -> "$SRC_VALUE_1"
+  map expr "null" -> "$SRC_KEY_2"
+  map expr "null" -> "$SRC_VALUE_2"
+  map expr "null" -> "$TGT_KEY_1"
+  map expr "null" -> "$TGT_VALUE_1"
+  map expr "null" -> "$TGT_KEY_2"
+  map expr "null" -> "$TGT_VALUE_2"
+  map expr "$Response" -> "$STATUS_DESCRIPTION"
+  map expr "null" -> "$ERROR_CODE"
+  map expr "$.hasOwnProperty(\"reason\") ? $reason : null" -> "$ERROR_DESCRIPTION"
+  map expr "\"FAIL : connection to WS error\"" -> "$JiraSummary"
+  map expr "_JiraComponent" -> "$JiraComponent"
+  map expr "$.hasOwnProperty(\"resolution\") ? $resolution : null" -> "$EmailResolution"
+  map expr "_To" -> "$EmailTo"
+  map expr "_Cc" -> "$EmailCc"
+  map expr "\"FAIL : connection to WS error\"" -> "$EmailSubject"
+  map expr "Date.now().toLocaleDateTimeString('{\"timeZone\":\"EST\", \"format\":\"yyyy-MM-dd HH:mm:ss\"}')" -> "$LogTime"
+  map expr "_AllowJSONFormat" -> "$JiraformatJSON"
+
+node union.2 union native=flow-union
+  label "Union1"
+  in in0
+  in in1
+  out out0
+  err err0 fail
+
+node effect.1 effect native=binary-delete
+  label "File Delete-Delete the successfully processed file from QV server"
+  in in0
+  out out0
+  err err0 continue
+  account expr "_QlikviewServer"
+  set executable_during_suggest false
+  set filePath expr "_fileName"
+  set validate false
+
+node map.10 map native=transform-datatransform
+  label "Mapper -DB logging for failure in fetching of files from SAP CSB Directory"
+  in in0
+  out out0
+  err err0 fail
+  nullsafe on
+  map expr "_LogIntoDB" -> "$LogIntoDB"
+  map expr "false" -> "$CreateJIRA"
+  map expr "_SendEmail" -> "$SendEmail"
+  map expr "_fileName" -> "$Request"
+  map expr "null" -> "$error"
+  map expr "_fileName + \"file deleted successfully from QV server\"" -> "$Response"
+  map expr "pipe.projectPath" -> "$projectPath"
+  map expr "pipe.ruuid" -> "$ruuid"
+  map expr "pipe.label" -> "$label"
+  map expr "\"SnapLogic\"" -> "$USER"
+  map expr "\"CSB_TO_NS\"" -> "$MODULE_NAME"
+  map expr "\"Success\"" -> "$Status"
+  map expr "\"Snap Name\"" -> "$SRC_KEY_1"
+  map expr "$snap_details.label" -> "$SRC_VALUE_1"
+  map expr "null" -> "$SRC_KEY_2"
+  map expr "null" -> "$SRC_VALUE_2"
+  map expr "null" -> "$TGT_KEY_1"
+  map expr "null" -> "$TGT_VALUE_1"
+  map expr "null" -> "$TGT_KEY_2"
+  map expr "null" -> "$TGT_VALUE_2"
+  map expr "\"Successfully uploaded files to Workspaces : \"+ _fileName" -> "$STATUS_DESCRIPTION"
+  map expr "null" -> "$ERROR_CODE"
+  map expr "null" -> "$ERROR_DESCRIPTION"
+  map expr "\"Successfully uploaded files to Workspaces : \"+ _fileName" -> "$JiraSummary"
+  map expr "_JiraComponent" -> "$JiraComponent"
+  map expr "null" -> "$EmailResolution"
+  map expr "_To" -> "$EmailTo"
+  map expr "_Cc" -> "$EmailCc"
+  map expr "\"Success: \" + _fileName + \" has been uploaded to Workspaces\"" -> "$EmailSubject"
+  map expr "Date.now().toLocaleDateTimeString('{\"timeZone\":\"EST\", \"format\":\"yyyy-MM-dd HH:mm:ss\"}')" -> "$LogTime"
+  map expr "_AllowJSONFormat" -> "$JiraformatJSON"
+
+node map.11 map native=transform-datatransform
+  label "Mapper -DB logging for failure to delete the file from Qlikview server"
+  in in0
+  out out0
+  err err0 fail
+  nullsafe on
+  map expr "_LogIntoDB" -> "$LogIntoDB"
+  map expr "_CreateJIRA" -> "$CreateJIRA"
+  map expr "_SendEmail" -> "$SendEmail"
+  map expr "_fileName" -> "$Request"
+  map expr "$['Error ']" -> "$error"
+  map expr "null" -> "$Response"
+  map expr "pipe.projectPath" -> "$projectPath"
+  map expr "pipe.ruuid" -> "$ruuid"
+  map expr "pipe.label" -> "$label"
+  map expr "\"SnapLogic\"" -> "$USER"
+  map expr "\"SNAP_TO_QV\"" -> "$MODULE_NAME"
+  map expr "\"Fail\"" -> "$Status"
+  map expr "\"Snap Name\"" -> "$SRC_KEY_1"
+  map expr "$snap_details.label" -> "$SRC_VALUE_1"
+  map expr "null" -> "$SRC_KEY_2"
+  map expr "null" -> "$SRC_VALUE_2"
+  map expr "null" -> "$TGT_KEY_1"
+  map expr "null" -> "$TGT_VALUE_1"
+  map expr "null" -> "$TGT_KEY_2"
+  map expr "null" -> "$TGT_VALUE_2"
+  map expr "\"FAIL : Unable to delete the file : \"+_fileName + \"  from Qlikview server\"" -> "$STATUS_DESCRIPTION"
+  map expr "null" -> "$ERROR_CODE"
+  map expr "$.hasOwnProperty(\"reason\") ? $reason : null" -> "$ERROR_DESCRIPTION"
+  map expr "\"FAIL : Unable to delete the file : \"+_fileName + \"  from Qlikview server\"" -> "$JiraSummary"
+  map expr "_JiraComponent" -> "$JiraComponent"
+  map expr "$.hasOwnProperty(\"resolution\") ? $resolution : null" -> "$EmailResolution"
+  map expr "_To" -> "$EmailTo"
+  map expr "_Cc" -> "$EmailCc"
+  map expr "\"FAIL : Unable to delete the file : \"+_fileName + \"  from Qlikview server\"" -> "$EmailSubject"
+  map expr "Date.now().toLocaleDateTimeString('{\"timeZone\":\"EST\", \"format\":\"yyyy-MM-dd HH:mm:ss\"}')" -> "$LogTime"
+  map expr "_AllowJSONFormat" -> "$JiraformatJSON"
+
+node union.3 union native=flow-union
+  label "Union-For Final DB logging(Error Or Response)"
+  in in0 label "Fail_QV_Connect"
+  in in1 label "Fail_Parse"
+  in in2 label "Fail_Workspace"
+  in in3 label "Fail_QV_File_delete"
+  in in4 label "Success"
+  out out0
+  err err0 fail
+
+node map.12 map native=transform-datatransform
+  label "Mapper--Set the variables for logging"
+  in in0
+  out out0
+  err err0 fail
+  nullsafe on
+  map expr "$LogIntoDB" -> "$Database.LogIntoDB"
+  map expr "$LogTime" -> "$Database.LogTime"
+  map expr "$CreateJIRA" -> "$Jira.CreateJIRA"
+  map expr "$SendEmail" -> "$Email.SendEmail"
+  map expr "$Request" -> "$Request"
+  map expr "$Response" -> "$Response"
+  map expr "$projectPath" -> "$pipe.projectPath"
+  map expr "$ruuid" -> "$pipe.ruuid"
+  map expr "$label" -> "$pipe.label"
+  map expr "\"SnapLogic\"" -> "$Database.USER"
+  map expr "$MODULE_NAME" -> "$Database.MODULE_NAME"
+  map expr "$Status" -> "$Status"
+  map expr "$SRC_KEY_1" -> "$Database.SRC_KEY_1"
+  map expr "$SRC_VALUE_1" -> "$Database.SRC_VALUE_1"
+  map expr "$SRC_KEY_2" -> "$Database.SRC_KEY_2"
+  map expr "$SRC_VALUE_2" -> "$Database.SRC_VALUE_2"
+  map expr "$TGT_KEY_1" -> "$Database.TGT_KEY_1"
+  map expr "$TGT_VALUE_1" -> "$Database.TGT_VALUE_1"
+  map expr "$TGT_KEY_2" -> "$Database.TGT_KEY_2"
+  map expr "$TGT_VALUE_2" -> "$Database.TGT_VALUE_2"
+  map expr "$STATUS_DESCRIPTION" -> "$Database.STATUS_DESCRIPTION"
+  map expr "$ERROR_DESCRIPTION" -> "$Database.ERROR_DESCRIPTION"
+  map expr "$JiraSummary" -> "$Jira.Summary"
+  map expr "$JiraComponent" -> "$Jira.Component"
+  map expr "$EmailTo" -> "$Email.To"
+  map expr "$EmailResolution" -> "$Email.Resolution"
+  map expr "$EmailSubject" -> "$Email.Subject"
+
+node exec.1 exec native=flow-pipeexec
+  label "Execute DB logging pipeline"
+  in in0
+  err err0 continue
+  call "../shared/INT1000_Data_Logging"
+  set execLabel expr null
+  set executable_during_suggest true
+  set loopDocument expr null
+  set poolSize 1
+  set reuse false
+  set snaplex null
+
+node write.2 sink native=email-emailsender
+  label "Send email when logging operation(s) fails"
+  in in0
+  err err0 fail
+  account "RIM.NET" type email-smtpaccount
+  set attachments []
+  set batchSize 100
+  set bcc null
+  set body expr "$"
+  set cc null
+  set emailType "HTML text"
+  set executable_during_suggest true
+  set from null
+  set passThrough false
+  set retries 3
+  set subject expr "pipe.label + \" Pipeline Failed During Logging Operation\""
+  set tableDataPath null
+  set to expr "_ToEmail"
+
+edge map.1:out0 -> copy.1:in0
+edge copy.1:out0 -> route.1:in0
+edge copy.1:out1 -> map.2:in0
+edge map.2:out0 -> join.1:in1
+edge route.1:out0 -> read.2:in0
+edge route.1:out1 -> read.1:in0
+edge read.1:out0 -> parse.1:in0
+edge read.2:err0 -> map.3:in0
+edge read.2:out0 -> parse.2:in0
+edge map.3:out0 -> union.3:in0
+edge parse.1:out0 -> union.1:in1
+edge parse.2:err0 -> map.4:in0
+edge parse.2:out0 -> format.1:in0
+edge format.1:out0 -> parse.3:in0
+edge map.4:out0 -> union.3:in1
+edge parse.3:out0 -> union.1:in0
+edge union.1:out0 -> map.5:in0
+edge map.5:out0 -> join.1:in0
+edge join.1:out0 -> map.6:in0
+edge map.6:out0 -> write.1:in0
+edge write.1:err0 -> map.7:in0
+edge write.1:out0 -> map.8:in0
+edge map.7:out0 -> copy.2:in0
+edge map.8:out0 -> union.2:in1
+edge copy.2:out0 -> filter.1:in0
+edge copy.2:out1 -> map.9:in0
+edge filter.1:out0 -> union.2:in0
+edge map.9:out0 -> union.3:in2
+edge union.2:out0 -> effect.1:in0
+edge effect.1:err0 -> map.11:in0
+edge effect.1:out0 -> map.10:in0
+edge map.10:out0 -> union.3:in4
+edge map.11:out0 -> union.3:in3
+edge union.3:out0 -> map.12:in0
+edge map.12:out0 -> exec.1:in0
+edge exec.1:err0 -> write.2:in0
+
+pipeline-in map.1:in0 label "Mapper2 - input0"

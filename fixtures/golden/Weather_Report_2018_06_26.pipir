@@ -1,0 +1,101 @@
+etl-ir 0.1
+dialect snaplogic
+
+pipeline "Weather Report"
+
+node read.1 source native=email-emailreader
+  label "Email Reader"
+  out out0
+  err err0 fail
+  account "Snapdemo" type email-pop3account
+  set attachmentFolder "shared"
+  set fileAction "OVERWRITE"
+  set mailFolder "Inbox"
+  set numberOfMessages "All"
+  set olderMessageFirst true
+  set unreadOnly true
+
+node filter.1 filter native=flow-filter
+  label "Filter"
+  in in0
+  out out0
+  err err0 fail
+  where expr "$subject.toLowerCase().trim() == \"weather\" && $textBody != null && $textBody.length > 4"
+
+node call.1 call native=rest-get
+  label "REST Get"
+  in in0
+  out out0
+  err err0 fail
+  set connTimeout 30
+  set executeDuringPreview true
+  set followRedirects true
+  set hasNext null
+  set header []
+  set nextUrl null
+  set paginationInterval 0
+  set processArray false
+  set queryParams[0].queryParam "q"
+  set queryParams[0].queryParamValue expr "$textBody"
+  set queryParams[1].queryParam "appid"
+  set queryParams[1].queryParamValue "2769a64ab01ad37ba86e634f45ef356d"
+  set queryParams[2].queryParam "units"
+  set queryParams[2].queryParamValue "metric"
+  set rawData false
+  set responseEntityType "DEFAULT"
+  set retry 5
+  set retryInterval 3
+  set serviceUrl "http://api.openweathermap.org/data/2.5/weather"
+  set showAllHeaders false
+  set timeout 900
+  set trustAllCerts true
+
+node write.1 sink native=email-emailsender
+  label "Email Sender"
+  in in0
+  out out0
+  err err0 fail
+  account "SnapGmail" type email-smtpaccount
+  set attachments []
+  set batchSize 100
+  set bcc null
+  set body expr |
+    "<!DOCTYPE html>
+    <html>
+    <body>
+    
+    <!-- Sidebar -->
+    <div style='width:30%;height:80%;font-family:Courier New;'>
+      <h3 style='margin-left:10px;margin-top:5px'>"+ $entity.name +"</h3>
+      <table style='margin-left:10px;' cellpadding='5'>
+      <tr style='background-color:lightgrey'>
+      <td> Temperature </td> <td>"+ $entity.main.temp +"</td>
+      </tr>
+      <tr>
+      <td> Humidity </td> <td>"+  $entity.main.humidity +"</td>
+      </tr>
+      <tr style='background-color:lightgrey'>
+      	<td> Pressure </td> <td>"+  $entity.main.pressure +"</td>
+      </tr>
+       <tr>
+      <td> Wind Speed </td> <td>"+ $entity.wind.speed +"</td>
+      </tr>
+      </table>
+     </div>
+    </body>
+    </html>"
+  set cc null
+  set emailType "HTML text"
+  set executable_during_suggest false
+  set from "snaplogicdemo@gmail.com"
+  set passThrough false
+  set retries 3
+  set subject "Weather Report"
+  set tableDataPath null
+  set to expr "$original.from[0]"
+
+edge read.1:out0 -> filter.1:in0
+edge filter.1:out0 -> call.1:in0
+edge call.1:out0 -> write.1:in0
+
+pipeline-out write.1:out0 label "Email Sender - output0"

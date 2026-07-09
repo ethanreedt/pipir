@@ -1,0 +1,71 @@
+etl-ir 0.1
+dialect snaplogic
+
+pipeline "JMS_Writer_Service" ; name from filename (export carries no label)
+
+node read.1 source native=binary-simpleread
+  label "File Reader"
+  out out0 binary
+  err err0 continue
+  set enableStaging false
+  set executeDuringPreview true
+  set execution_mode "Validate & Execute"
+  set filePath "Employee_Details.xlsx"
+  set preventURLEncoding false
+  set retries 0
+  set retryInterval 1
+
+node parse.1 parse native=transform-excelparser
+  label "Excel Parser"
+  in in0 binary
+  out out0
+  err err0 fail
+  set EvaluateFormulasProp false
+  set cellFormatting "Formatted"
+  set columnNamesProp []
+  set containsHeaderProp true
+  set endRowProp null
+  set execution_mode "Validate & Execute"
+  set headerRowProp 1
+  set lastBlankHeaders 0
+  set nullEmptyColumns false
+  set roundDateToSeconds false
+  set sheetIndexOrNameProp "0"
+  set sheetNameProp null
+  set startRowProp null
+
+node format.1 format native=transform-jsonformatter
+  label "JSON Formatter"
+  in in0
+  out out0 binary
+  err err0 binary fail
+  set contentPath "$"
+  set deriveSchemaLimit "None"
+  set execution_mode "Validate & Execute"
+  set formatSingleDocument false
+  set header[0].expression expr null
+  set header[0].targetPath null
+  set ignoreEmptyStream false
+  set jsonLines false
+  set prettyPrint false
+  set schema null
+
+node write.1 sink native=jms-jmsproducer
+  label "JMS Producer"
+  in in0 binary
+  out out0
+  err err0 continue
+  account "Test-JMS" type jms-jmsaccount
+  set destination "SnaplogicQueue"
+  set destinationType "QUEUE"
+  set executable_during_suggest false
+  set execution_mode "Validate & Execute"
+  set messageProperties []
+  set messageType "TEXT"
+  set transactedSession false
+
+edge read.1:out0 -> parse.1:in0
+edge parse.1:out0 -> format.1:in0
+edge format.1:out0 -> write.1:in0
+
+pipeline-out write.1:out0 label "JMS Producer - output0"

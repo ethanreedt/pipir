@@ -1,0 +1,69 @@
+etl-ir 0.1
+dialect snaplogic
+
+pipeline "JMS_Reader_Service" ; name from filename (export carries no label)
+
+node read.1 source native=jms-jmsconsumer
+  label "JMS Consumer"
+  out out0 binary
+  err err0 fail
+  account "Test-JMS" type jms-jmsaccount
+  set clientId null
+  set controlDestination null
+  set destination "SnaplogicQueue"
+  set destinationType "QUEUE"
+  set durableSubscriber false
+  set execution_mode "Validate & Execute"
+  set messageAcknowledgeMode "AUTO_ACKNOWLEDGE"
+  set messageCount 1
+  set messageProcessingMode "Asynchronous"
+  set messageSelector null
+  set subscriptionName null
+
+node parse.1 parse native=transform-jsonparser
+  label "JSON Parser"
+  in in0 binary
+  out out0
+  err err0 fail
+  set allowNonStandardJson true
+  set arrayElementsAsDocuments true
+  set execution_mode "Validate & Execute"
+  set jsonFilterPath ""
+
+node format.1 format native=transform-jsonformatter
+  label "JSON Formatter"
+  in in0
+  out out0 binary
+  err err0 binary fail
+  set contentPath "$"
+  set deriveSchemaLimit "None"
+  set execution_mode "Validate & Execute"
+  set formatSingleDocument false
+  set header[0].expression expr null
+  set header[0].targetPath null
+  set ignoreEmptyStream true
+  set jsonLines false
+  set prettyPrint false
+  set schema null
+
+node write.1 sink native=binary-write
+  label "File Writer"
+  in in0 binary
+  err err0 fail
+  set UserPermissionsKey []
+  set advancedProperties []
+  set createDir false
+  set executable_during_suggest false
+  set execution_mode "Validate & Execute"
+  set fileAction "OVERWRITE"
+  set filename expr "\"JMS_Message_\"+Date.now()+\".json\""
+  set flushIntervalKb -1
+  set retries 0
+  set retryInterval 1
+  set validate false
+  set writeEmptyFile false
+  set writeHeader false
+
+edge read.1:out0 -> parse.1:in0
+edge parse.1:out0 -> format.1:in0
+edge format.1:out0 -> write.1:in0

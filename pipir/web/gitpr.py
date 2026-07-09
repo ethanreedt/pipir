@@ -23,23 +23,25 @@ class GitError(RuntimeError):
     pass
 
 
-def _token_flags():
-    """One-shot credential helper when PIPIR_GITHUB_TOKEN is set.
+def _cred_flags():
+    """One-shot credential helper when PIPIR_GIT_PASSWORD is set.
 
-    The token is read from the environment inside the helper, so it never
-    appears in process arguments or on disk. Empty helper first resets any
-    configured helpers so the token wins (and nothing prompts).
+    Supplies PIPIR_GIT_USER / PIPIR_GIT_PASSWORD from the environment for
+    git-over-https auth (a plain account password, or a PAT used as one).
+    The values are read inside the helper at call time, so they never
+    appear in process arguments or on disk. Empty helper first resets any
+    configured helpers so these credentials win (and nothing prompts).
     """
-    if not os.environ.get("PIPIR_GITHUB_TOKEN"):
+    if not os.environ.get("PIPIR_GIT_PASSWORD"):
         return []
-    helper = ("!f() { echo username=x-access-token; "
-              "echo \"password=$PIPIR_GITHUB_TOKEN\"; }; f")
+    helper = ("!f() { echo \"username=${PIPIR_GIT_USER:-git}\"; "
+              "echo \"password=$PIPIR_GIT_PASSWORD\"; }; f")
     return ["-c", "credential.helper=", "-c", "credential.helper=" + helper]
 
 
 def _git(repo, *args, timeout=120, auth=False):
     cmd = ["git"] + (["-C", repo] if repo else []) \
-        + (_token_flags() if auth else []) + list(args)
+        + (_cred_flags() if auth else []) + list(args)
     proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
     if proc.returncode != 0:
         raise GitError((proc.stderr or proc.stdout)
@@ -117,9 +119,8 @@ def _cache_repo(host, owner, repo):
         except GitError as exc:
             raise GitError(
                 "cannot clone %s: %s\n(private repo? either make plain "
-                "`git clone %s` work, set PIPIR_GITHUB_TOKEN in .env to a "
-                "PAT with repo read access, or use local-clone mode)"
-                % (url, exc, url))
+                "`git clone %s` work, set PIPIR_GIT_USER/PIPIR_GIT_PASSWORD "
+                "in .env, or use local-clone mode)" % (url, exc, url))
     return path
 
 

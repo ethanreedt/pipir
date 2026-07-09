@@ -41,9 +41,11 @@ def _extract_map(node):
         stmts.append("passthrough on")
     if node.settings.pop("nullSafeAccess", False) is True:
         stmts.append("nullsafe on")
+    mappings = []
     for row in table:
         expr = render_value(row.get("expression"))
         target = row.get("targetPath")
+        mappings.append((row.get("expression"), target))
         if target is None or target == "":
             stmts.append("map %s ->" % expr)
         else:
@@ -57,6 +59,9 @@ def _extract_map(node):
     for k, v in leftovers.items():
         node.settings["transformations." + k] = v
     node.statements = stmts
+    node.op = {"type": "map", "passthrough": "passthrough on" in stmts,
+               "root": root if isinstance(root, str) else "$",
+               "mappings": mappings}
 
 
 def _extract_route(node):
@@ -68,11 +73,14 @@ def _extract_route(node):
     if not routes:
         # Documented Router behavior with an empty routes table.
         stmts.append("; no routes: documents round-robin across outputs")
+    parsed = []
     for row in routes:
         target = _slot(node, row.get("outputViewName")) \
             or render_value(row.get("outputViewName"))
+        parsed.append((row.get("expression"), target))
         stmts.append("when %s -> %s" % (render_value(row.get("expression")), target))
     node.statements = stmts
+    node.op = {"type": "route", "first_match": first is True, "routes": parsed}
 
 
 def _extract_filter(node):
@@ -83,6 +91,7 @@ def _extract_filter(node):
     if node.settings.pop("nullSafeAccess", False) is True:
         stmts.append("nullsafe on")
     node.statements = stmts
+    node.op = {"type": "filter", "where": expr}
 
 
 def _extract_join(node):
@@ -107,14 +116,17 @@ def _extract_exec(node):
     if pipeline is None:
         return
     stmts = ["call " + render_value(pipeline)]
+    args = []
     params = node.settings.get("params")
     if isinstance(params, list) and all(isinstance(r, dict) for r in params):
         node.settings.pop("params")
         for row in params:
             key = row.get("key")
+            args.append((key, row.get("value")))
             key = key if isinstance(key, str) else render_value(key)
             stmts.append("arg %s %s" % (key, render_value(row.get("value"))))
     node.statements = stmts
+    node.op = {"type": "exec", "pipeline": pipeline, "args": args}
 
 
 _EXTRACTORS = {

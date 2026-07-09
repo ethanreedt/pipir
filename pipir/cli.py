@@ -28,6 +28,10 @@ def build_parser():
     parser.add_argument("--from", dest="input_type", choices=DIALECTS,
                         default="slp",
                         help="input dialect (default: %(default)s)")
+    parser.add_argument("--idmap", metavar="FILE",
+                        help="also write a JSON glue map of mangled node ids "
+                             "to stable .slp instance ids (tooling aid; not "
+                             "part of the IR)")
     parser.add_argument("--coverage", action="store_true",
                         help="print a typed/classified/opaque snap coverage "
                              "report instead of IR")
@@ -56,7 +60,14 @@ def main(argv=None):
             from .report import coverage, format_coverage
             text = format_coverage(coverage(doc))
         else:
-            text = convert_slp(doc, name_fallback=stem)
+            from .convert import build_pipeline, idmap
+            from .emit import emit
+            pipe = build_pipeline(doc, name_fallback=stem)
+            text = emit(pipe)
+            if args.idmap:
+                with open(args.idmap, "w", encoding="utf-8") as f:
+                    json.dump(idmap(pipe), f, indent=2, sort_keys=True)
+                    f.write("\n")
     except SlpError as exc:
         print("pipir: %s: %s" % (args.input, exc), file=sys.stderr)
         return 2

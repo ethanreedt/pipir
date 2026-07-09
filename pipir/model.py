@@ -36,6 +36,7 @@ class Node:
     statements: List[str] = field(default_factory=list)  # pre-rendered, unindented
     settings: Dict[str, Any] = field(default_factory=dict)  # unwrapped remainder
     ref: str = ""             # mangled id, assigned after ordering (map.1, route.1)
+    op: Dict[str, Any] = field(default_factory=dict)  # structured extractor data (for lint)
     # view key -> slot, for rewriting settings references and resolving links
     slot_by_key: Dict[str, str] = field(default_factory=dict)
     slot_by_label: Dict[str, str] = field(default_factory=dict)

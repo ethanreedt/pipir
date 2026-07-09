@@ -23,8 +23,23 @@ class GitError(RuntimeError):
     pass
 
 
-def _git(repo, *args, timeout=120):
-    cmd = ["git"] + (["-C", repo] if repo else []) + list(args)
+def _token_flags():
+    """One-shot credential helper when PIPIR_GITHUB_TOKEN is set.
+
+    The token is read from the environment inside the helper, so it never
+    appears in process arguments or on disk. Empty helper first resets any
+    configured helpers so the token wins (and nothing prompts).
+    """
+    if not os.environ.get("PIPIR_GITHUB_TOKEN"):
+        return []
+    helper = ("!f() { echo username=x-access-token; "
+              "echo \"password=$PIPIR_GITHUB_TOKEN\"; }; f")
+    return ["-c", "credential.helper=", "-c", "credential.helper=" + helper]
+
+
+def _git(repo, *args, timeout=120, auth=False):
+    cmd = ["git"] + (["-C", repo] if repo else []) \
+        + (_token_flags() if auth else []) + list(args)
     proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
     if proc.returncode != 0:
         raise GitError((proc.stderr or proc.stdout)
@@ -98,12 +113,13 @@ def _cache_repo(host, owner, repo):
         url = "https://%s/%s/%s.git" % (host, owner, repo)
         try:
             _git(None, "clone", "--bare", "--filter=blob:none",
-                 url, path, timeout=600)
+                 url, path, timeout=600, auth=True)
         except GitError as exc:
             raise GitError(
-                "cannot clone %s: %s\n(private repo? make sure plain "
-                "`git clone %s` works — pipir reuses git's own auth — or "
-                "use local-clone mode)" % (url, exc, url))
+                "cannot clone %s: %s\n(private repo? either make plain "
+                "`git clone %s` work, set PIPIR_GITHUB_TOKEN in .env to a "
+                "PAT with repo read access, or use local-clone mode)"
+                % (url, exc, url))
     return path
 
 
@@ -115,12 +131,14 @@ def pr_url_slp_files(url):
     host, owner, repo, number = parse_pr_url(url)
     path = _cache_repo(host, owner, repo)
     # Default branch of the remote (target of the PR's merge-base).
-    sym = _text(path, "ls-remote", "--symref", "origin", "HEAD")
+    sym = _git(path, "ls-remote", "--symref", "origin", "HEAD",
+               auth=True).decode("utf-8", "replace")
     m = re.search(r"^ref:\s+refs/heads/(\S+)\s+HEAD", sym, re.M)
     default = m.group(1) if m else "main"
     _git(path, "fetch", "--force", "--quiet", "origin",
          "refs/pull/%d/head:refs/pipir/head" % number,
-         "refs/heads/%s:refs/pipir/base" % default, timeout=600)
+         "refs/heads/%s:refs/pipir/base" % default,
+         timeout=600, auth=True)
     head = _text(path, "rev-parse", "refs/pipir/head")
     base = _text(path, "merge-base", "refs/pipir/base", head)
     changed = _text(path, "diff", "--name-only", "--diff-filter=ACMR",
